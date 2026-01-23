@@ -21,7 +21,8 @@ if (!class_exists('WPW_Theme_Updater')) {
         public function __construct() {
             $theme = wp_get_theme();
             $this->theme_slug = $theme->get_stylesheet();
-            $this->theme_name = $theme->get('Name');
+            // Always use WP Wizards branding, regardless of installed theme name
+            $this->theme_name = 'WP Wizards Custom';
             $this->current_version = $theme->get('Version');
             
             // GitHub configuration - Hardcoded defaults (can be overridden via options)
@@ -37,6 +38,7 @@ if (!class_exists('WPW_Theme_Updater')) {
             add_filter('pre_set_site_transient_update_themes', array($this, 'check_for_updates'));
             add_filter('themes_api', array($this, 'theme_api_call'), 10, 3);
             add_action('admin_notices', array($this, 'update_notice'));
+            add_filter('upgrader_source_selection', array($this, 'fix_theme_directory_name'), 10, 4);
         }
         
         /**
@@ -45,6 +47,11 @@ if (!class_exists('WPW_Theme_Updater')) {
         public function check_for_updates($transient) {
             if (empty($transient->checked)) {
                 return $transient;
+            }
+            
+            // Store current version in checked array if not present
+            if (!isset($transient->checked[$this->theme_slug])) {
+                $transient->checked[$this->theme_slug] = $this->current_version;
             }
             
             $update_data = $this->get_update_data();
@@ -56,6 +63,9 @@ if (!class_exists('WPW_Theme_Updater')) {
                     'url' => $update_data['details_url'],
                     'package' => $update_data['download_url'],
                 );
+            } else {
+                // Remove from response if version is up to date
+                unset($transient->response[$this->theme_slug]);
             }
             
             return $transient;
@@ -117,9 +127,12 @@ if (!class_exists('WPW_Theme_Updater')) {
             // Extract version from tag (remove 'v' prefix if present)
             $latest_version = ltrim($release['tag_name'], 'v');
             
+            // Normalize version for comparison (handle cases like 1.0.0 vs 1.0)
+            $latest_version_normalized = $this->normalize_version($latest_version);
+            $current_version_normalized = $this->normalize_version($this->current_version);
+            
             // Find the theme zip file in assets
             $download_url = '';
-            $zip_filename = $this->theme_slug . '.zip'; // e.g., divi-child.zip
             
             if (isset($release['assets']) && is_array($release['assets'])) {
                 foreach ($release['assets'] as $asset) {
@@ -128,7 +141,8 @@ if (!class_exists('WPW_Theme_Updater')) {
                         (strpos($asset['name'], '.zip') !== false)) {
                         $download_url = $asset['browser_download_url'];
                         // Prefer exact match if available
-                        if (strpos($asset['name'], $this->theme_slug) !== false) {
+                        if (strpos($asset['name'], $this->theme_slug) !== false || 
+                            strpos($asset['name'], 'divi-child') !== false) {
                             break;
                         }
                     }
@@ -155,7 +169,7 @@ if (!class_exists('WPW_Theme_Updater')) {
                 'version' => $latest_version,
                 'download_url' => $download_url,
                 'details_url' => $release['html_url'],
-                'author' => isset($release['author']['login']) ? $release['author']['login'] : 'WP Wizards',
+                'author' => 'WP Wizards',
                 'requires' => '5.0',
                 'tested' => get_bloginfo('version'),
                 'requires_php' => '7.4',
@@ -178,10 +192,10 @@ if (!class_exists('WPW_Theme_Updater')) {
                 
                 if ($update_data) {
                     return (object) array(
-                        'name' => $this->theme_name,
+                        'name' => 'WP Wizards Custom',
                         'slug' => $this->theme_slug,
                         'version' => $update_data['version'],
-                        'author' => $update_data['author'],
+                        'author' => 'WP Wizards',
                         'requires' => $update_data['requires'],
                         'tested' => $update_data['tested'],
                         'requires_php' => $update_data['requires_php'],
@@ -225,6 +239,67 @@ if (!class_exists('WPW_Theme_Updater')) {
                 </p>
             </div>
             <?php
+        }
+        
+        /**
+         * Fix theme directory name when extracting from GitHub zip
+         * GitHub source zips include the repo name as a folder, we need to extract to theme slug
+         */
+        public function fix_theme_directory_name($source, $remote_source, $upgrader, $hook_extra) {
+            global $wp_filesystem;
+            
+            // Only process our theme
+            if (!isset($hook_extra['theme']) || $hook_extra['theme'] !== $this->theme_slug) {
+                return $source;
+            }
+            
+            // Check if source is a directory
+            if (!is_dir($source)) {
+                return $source;
+            }
+            
+            // Get the directory name in the zip
+            $source_files = list_files($source, 1);
+            if (empty($source_files)) {
+                return $source;
+            }
+            
+            // Find the actual theme folder (might be repo-name-version or just repo-name)
+            $theme_folder = '';
+            foreach ($source_files as $file) {
+                if (is_dir($source . '/' . $file) && file_exists($source . '/' . $file . '/style.css')) {
+                    $theme_folder = $file;
+                    break;
+                }
+            }
+            
+            // If we found a folder with style.css, rename it to match theme slug
+            if ($theme_folder && $theme_folder !== $this->theme_slug) {
+                $corrected_source = $remote_source . '/' . $this->theme_slug;
+                
+                // Move the folder to the correct name
+                if ($wp_filesystem->move($source . '/' . $theme_folder, $corrected_source, true)) {
+                    // Remove the old source directory
+                    $wp_filesystem->rmdir($source);
+                    return $corrected_source;
+                }
+            }
+            
+            return $source;
+        }
+        
+        /**
+         * Normalize version string for comparison
+         */
+        private function normalize_version($version) {
+            // Remove any non-numeric/non-dot characters except for 'v' prefix
+            $version = preg_replace('/[^0-9.]/', '', $version);
+            // Ensure we have at least major.minor format
+            $parts = explode('.', $version);
+            while (count($parts) < 3) {
+                $parts[] = '0';
+            }
+            return implode('.', array_slice($parts, 0, 3));
         }
         
         /**
