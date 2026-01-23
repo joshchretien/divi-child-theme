@@ -70,10 +70,24 @@ try {
     Write-Host "`n❌ Error creating release:" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     
+    if ($_.ErrorDetails) {
+        Write-Host "Details: $($_.ErrorDetails.Message)" -ForegroundColor Yellow
+    }
+    
     if ($_.Exception.Response) {
-        $Reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-        $ResponseBody = $Reader.ReadToEnd()
-        Write-Host "Response: $ResponseBody" -ForegroundColor Yellow
+        try {
+            $Stream = $_.Exception.Response.GetResponseStream()
+            $Reader = New-Object System.IO.StreamReader($Stream)
+            $ResponseBody = $Reader.ReadToEnd()
+            Write-Host "Response: $ResponseBody" -ForegroundColor Yellow
+        } catch {
+            # If we can't read the stream, try to get status code
+            Write-Host "Status Code: $($_.Exception.Response.StatusCode.value__)" -ForegroundColor Yellow
+            if ($_.Exception.Response.StatusCode.value__ -eq 422) {
+                Write-Host "`n💡 Tip: This usually means the release tag already exists." -ForegroundColor Cyan
+                Write-Host "   Either delete the existing release/tag on GitHub, or update the version in style.css" -ForegroundColor Cyan
+            }
+        }
     }
     
     exit 1
