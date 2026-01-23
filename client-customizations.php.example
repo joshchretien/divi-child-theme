@@ -1,0 +1,74 @@
+<?php
+/**
+ * Client Customizations
+ * 
+ * Add your custom code here. This file will NOT be overwritten during theme updates.
+ * 
+ * This file is included at the end of functions.php, so you have access to all
+ * WordPress functions and hooks.
+ * 
+ * IMPORTANT: This file is in .gitignore, so your customizations are safe from updates.
+ * 
+ * TO USE: Copy this file to client-customizations.php (remove .example)
+ * Or just start editing - the file will be created automatically.
+ */
+
+// Example: Add your custom code below this line
+
+// Add custom CSS
+// function client_custom_css() {
+//     echo '<style>
+//         /* Your custom CSS here */
+//         .my-custom-class {
+//             color: #ff0000;
+//             font-weight: bold;
+//         }
+//     </style>';
+// }
+// add_action('wp_head', 'client_custom_css');
+
+// Add custom JavaScript
+// function client_custom_js() {
+//     echo '<script>
+//         // Your custom JavaScript here
+//         console.log("Custom script loaded");
+//     </script>';
+// }
+// add_action('wp_footer', 'client_custom_js');
+
+// Add custom shortcode
+// function client_custom_shortcode($atts) {
+//     $atts = shortcode_atts(array(
+//         'text' => 'Hello World',
+//     ), $atts);
+//     return '<p class="custom-shortcode">' . esc_html($atts['text']) . '</p>';
+// }
+// add_shortcode('client_shortcode', 'client_custom_shortcode');
+
+// Add custom action hook
+// add_action('wp_footer', function() {
+//     echo '<!-- Custom footer content -->';
+// });
+
+// Add custom filter
+// add_filter('the_content', function($content) {
+//     // Modify content here
+//     // Example: Add text after each paragraph
+//     $content .= '<p><em>Custom content added via filter</em></p>';
+//     return $content;
+// });
+
+// Add custom post type (example)
+// function client_custom_post_type() {
+//     register_post_type('client_custom',
+//         array(
+//             'labels' => array(
+//                 'name' => 'Custom Items',
+//                 'singular_name' => 'Custom Item'
+//             ),
+//             'public' => true,
+//             'has_archive' => true,
+//         )
+//     );
+// }
+// add_action('init', 'client_custom_post_type');

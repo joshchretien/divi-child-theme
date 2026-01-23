@@ -30,3 +30,6 @@ releases/
 
 # Keep bundled-plugins (they're needed)
 # bundled-plugins/
+
+# Client customizations (should never be committed)
+client-customizations.php

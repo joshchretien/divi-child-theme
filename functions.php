@@ -587,17 +587,67 @@ function wpwizards_settings_page() {
         <!-- Tools Tab -->
         <div id="tab-tools" class="wpwizards-tab-content">
             <div class="wpwizards-section">
-                <h2>Available Tools</h2>
-                <p>Quick access to useful tools and utilities for your website.</p>
+                <h2>Client Customizations</h2>
+                <p>Add your own custom code without worrying about theme updates overwriting it.</p>
                 
-                <h3>Coming Soon</h3>
-                <p>More tools will be added here as they become available. Check back regularly for updates!</p>
+                <div class="wpwizards-success-box">
+                    <strong>✅ Safe Customization File:</strong> Use <code>client-customizations.php</code> for all your custom code. This file is protected from theme updates!
+                </div>
                 
+                <h3>How to Use</h3>
+                <p>Edit the file <code>client-customizations.php</code> in your theme folder. You can add:</p>
                 <ul class="wpwizards-feature-list">
-                    <li>Additional shortcodes</li>
-                    <li>Custom widgets</li>
-                    <li>Performance utilities</li>
-                    <li>SEO helpers</li>
+                    <li>Custom functions</li>
+                    <li>Custom hooks and filters</li>
+                    <li>Custom shortcodes</li>
+                    <li>Custom CSS and JavaScript</li>
+                    <li>Any WordPress PHP code</li>
+                </ul>
+                
+                <h3>File Location</h3>
+                <div class="wpwizards-code-block">
+                    <code>wp-content/themes/divi-child/client-customizations.php</code>
+                </div>
+                <button class="wpwizards-copy-btn">Copy Path</button>
+                
+                <h3>Example Usage</h3>
+                <p>Here's an example of what you can add to <code>client-customizations.php</code>:</p>
+                
+                <div class="wpwizards-code-block">
+                    <code>// Add custom CSS
+function client_custom_css() {
+    echo '&lt;style&gt;
+        .my-custom-class { color: #ff0000; }
+    &lt;/style&gt;';
+}
+add_action('wp_head', 'client_custom_css');
+
+// Add custom shortcode
+function client_custom_shortcode($atts) {
+    return '&lt;p&gt;My custom content&lt;/p&gt;';
+}
+add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
+                </div>
+                <button class="wpwizards-copy-btn">Copy Code</button>
+                
+                <div class="wpwizards-info-box">
+                    <strong>Important Notes:</strong>
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li>This file is <strong>protected from updates</strong> - your code will never be overwritten</li>
+                        <li>The file is included at the end of <code>functions.php</code>, so all WordPress functions are available</li>
+                        <li><strong>Auto-created:</strong> If the file doesn't exist, it will be created automatically from the example template on first page load</li>
+                        <li>Always test your customizations on a staging site first</li>
+                        <li>If you make a mistake, you can delete the file and it will be recreated from the template</li>
+                    </ul>
+                </div>
+                
+                <h3>Access the File</h3>
+                <p>You can edit this file via:</p>
+                <ul style="margin-left: 20px;">
+                    <li><strong>FTP/SFTP:</strong> Navigate to the theme folder and edit <code>client-customizations.php</code></li>
+                    <li><strong>File Manager:</strong> Use your hosting control panel's file manager</li>
+                    <li><strong>Code Editor:</strong> Use a code editor like VS Code, Cursor, or similar</li>
+                    <li><strong>WordPress Plugin:</strong> Use a file editor plugin (not recommended for production)</li>
                 </ul>
             </div>
         </div>
@@ -620,6 +670,20 @@ function wpwizards_settings_page() {
                 echo '<div class="notice notice-success is-dismissible"><p>GitHub settings saved and cache cleared!</p></div>';
             }
             
+            // Handle reset to defaults
+            if (isset($_GET['reset_github']) && isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'reset_github')) {
+                delete_option('wpw_github_username');
+                delete_option('wpw_github_repo');
+                delete_option('wpw_github_token');
+                
+                $theme = wp_get_theme();
+                $theme_slug = $theme->get_stylesheet();
+                delete_transient('wpw_theme_update_' . $theme_slug);
+                delete_site_transient('update_themes');
+                
+                echo '<div class="notice notice-success is-dismissible"><p>GitHub settings reset to defaults!</p></div>';
+            }
+            
             // Handle cache clear request
             if (isset($_GET['clear_update_cache']) && isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'clear_update_cache')) {
                 $theme = wp_get_theme();
@@ -631,79 +695,82 @@ function wpwizards_settings_page() {
             
             $theme = wp_get_theme();
             $current_version = $theme->get('Version');
-            $github_username = get_option('wpw_github_username', '');
-            $github_repo = get_option('wpw_github_repo', '');
+            // Get values with defaults (hardcoded in theme)
+            $github_username = get_option('wpw_github_username', 'joshchretien');
+            $github_repo = get_option('wpw_github_repo', 'divi-child-theme');
             $github_token = get_option('wpw_github_token', '');
             ?>
             
             <div class="wpwizards-section">
                 <h2>Theme Update System</h2>
-                <p>Your child theme checks for updates from GitHub Releases. When you create a new release on GitHub, all client sites will automatically see the update.</p>
+                <p>Your child theme automatically checks for updates from GitHub Releases. When a new release is created, all sites will see the update notification.</p>
                 
                 <h3>Current Version</h3>
                 <p>You are currently running version <strong><?php echo esc_html($current_version); ?></strong> of <?php echo esc_html($theme->get('Name')); ?>.</p>
                 
-                <h3>GitHub Configuration</h3>
-                <form method="post" action="">
-                    <?php wp_nonce_field('wpw_github_settings'); ?>
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row">
-                                <label for="github_username">GitHub Username/Organization</label>
-                            </th>
-                            <td>
-                                <input type="text" id="github_username" name="github_username" 
-                                       value="<?php echo esc_attr($github_username); ?>" 
-                                       class="regular-text" 
-                                       placeholder="wpwizards" />
-                                <p class="description">Your GitHub username or organization name</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">
-                                <label for="github_repo">Repository Name</label>
-                            </th>
-                            <td>
-                                <input type="text" id="github_repo" name="github_repo" 
-                                       value="<?php echo esc_attr($github_repo); ?>" 
-                                       class="regular-text" 
-                                       placeholder="divi-child-theme" />
-                                <p class="description">The name of your GitHub repository</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">
-                                <label for="github_token">GitHub Token (Optional)</label>
-                            </th>
-                            <td>
-                                <input type="password" id="github_token" name="github_token" 
-                                       value="<?php echo esc_attr($github_token); ?>" 
-                                       class="regular-text" 
-                                       placeholder="ghp_xxxxxxxxxxxx" />
-                                <p class="description">
-                                    Optional: Personal Access Token for private repos or higher API rate limits. 
-                                    <a href="https://github.com/settings/tokens" target="_blank">Create one here</a> (no permissions needed for public repos)
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                    <p class="submit">
-                        <input type="submit" name="wpw_save_github_settings" class="button button-primary" value="Save Settings" />
-                    </p>
-                </form>
+                <div class="wpwizards-success-box">
+                    <strong>✅ Pre-Configured:</strong> This theme is already configured to check for updates from:
+                    <br><br>
+                    <strong>GitHub Repository:</strong> 
+                    <a href="https://github.com/<?php echo esc_attr($github_username); ?>/<?php echo esc_attr($github_repo); ?>" target="_blank">
+                        <?php echo esc_html($github_username); ?>/<?php echo esc_html($github_repo); ?>
+                    </a>
+                    <br><br>
+                    <em>No configuration needed! Updates will work automatically.</em>
+                </div>
                 
-                <?php if (!empty($github_username) && !empty($github_repo)): ?>
-                    <div class="wpwizards-success-box">
-                        <strong>GitHub Repository:</strong> 
-                        <a href="https://github.com/<?php echo esc_attr($github_username); ?>/<?php echo esc_attr($github_repo); ?>" target="_blank">
-                            <?php echo esc_html($github_username); ?>/<?php echo esc_html($github_repo); ?>
-                        </a>
+                <details style="margin-top: 20px;">
+                    <summary style="cursor: pointer; font-weight: 600; color: #555; margin-bottom: 10px;">Advanced: Override GitHub Settings (Optional)</summary>
+                    <div style="background: #f9f9f9; padding: 15px; border-radius: 4px; margin-top: 10px;">
+                        <p style="margin-top: 0;">Only change these if you need to use a different repository or private repo with a token.</p>
+                        <form method="post" action="" style="margin-top: 15px;">
+                            <?php wp_nonce_field('wpw_github_settings'); ?>
+                            <table class="form-table">
+                                <tr>
+                                    <th scope="row">
+                                        <label for="github_username">GitHub Username/Organization</label>
+                                    </th>
+                                    <td>
+                                        <input type="text" id="github_username" name="github_username" 
+                                               value="<?php echo esc_attr($github_username); ?>" 
+                                               class="regular-text" />
+                                        <p class="description">Leave as default unless using a different repo</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="github_repo">Repository Name</label>
+                                    </th>
+                                    <td>
+                                        <input type="text" id="github_repo" name="github_repo" 
+                                               value="<?php echo esc_attr($github_repo); ?>" 
+                                               class="regular-text" />
+                                        <p class="description">Leave as default unless using a different repo</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="github_token">GitHub Token (Optional)</label>
+                                    </th>
+                                    <td>
+                                        <input type="password" id="github_token" name="github_token" 
+                                               value="<?php echo esc_attr($github_token); ?>" 
+                                               class="regular-text" 
+                                               placeholder="ghp_xxxxxxxxxxxx" />
+                                        <p class="description">
+                                            Only needed for private repos or higher API rate limits. 
+                                            <a href="https://github.com/settings/tokens" target="_blank">Create one here</a>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p class="submit">
+                                <input type="submit" name="wpw_save_github_settings" class="button button-primary" value="Save Override Settings" />
+                                <a href="<?php echo esc_url(wp_nonce_url(add_query_arg('reset_github', '1'), 'reset_github')); ?>" class="button" onclick="return confirm('Reset to default GitHub settings?');">Reset to Defaults</a>
+                            </p>
+                        </form>
                     </div>
-                <?php else: ?>
-                    <div class="wpwizards-warning-box">
-                        <strong>Setup Required:</strong> Please configure your GitHub repository above to enable automatic updates.
-                    </div>
-                <?php endif; ?>
+                </details>
                 
                 <div class="wpwizards-info-box">
                     <strong>How It Works:</strong>
@@ -720,6 +787,17 @@ function wpwizards_settings_page() {
                     <a href="<?php echo esc_url(admin_url('themes.php')); ?>" class="button button-primary">Check for Updates</a>
                     <a href="<?php echo esc_url(wp_nonce_url(add_query_arg('clear_update_cache', '1'), 'clear_update_cache')); ?>" class="button">Clear Update Cache</a>
                 </p>
+                
+                <div class="wpwizards-info-box" style="margin-top: 20px;">
+                    <strong>How It Works:</strong>
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li>The theme automatically checks GitHub Releases every 12 hours</li>
+                        <li>When you create a new release on GitHub, all sites will see the update</li>
+                        <li>You can update directly from WordPress admin without manual file uploads</li>
+                        <li>Release notes from GitHub are displayed as the changelog</li>
+                        <li><strong>No configuration needed</strong> - it works out of the box!</li>
+                    </ul>
+                </div>
             </div>
         </div>
         
@@ -746,4 +824,22 @@ function wpwizards_settings_page() {
         </div>
     </div>
     <?php
+}
+
+/* --------------------------------------------------
+   CLIENT CUSTOMIZATIONS
+   This file is included at the end so client code runs after theme code.
+   This file is in .gitignore and will NOT be overwritten during updates.
+-------------------------------------------------- */
+$client_customizations = get_stylesheet_directory() . '/client-customizations.php';
+$client_customizations_example = get_stylesheet_directory() . '/client-customizations.php.example';
+
+// If client file doesn't exist but example does, create it from example
+if (!file_exists($client_customizations) && file_exists($client_customizations_example)) {
+    copy($client_customizations_example, $client_customizations);
+}
+
+// Include client customizations if it exists
+if (file_exists($client_customizations)) {
+    require_once $client_customizations;
 }
