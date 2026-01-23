@@ -956,6 +956,110 @@ function wpwizards_settings_page() {
             </div>
             
             <div class="wpwizards-section">
+                <h2>Theme Updates</h2>
+                <p>Check for theme updates from GitHub and manage your theme version.</p>
+                
+                <?php
+                $theme = wp_get_theme();
+                $current_version = $theme->get('Version');
+                $theme_slug = $theme->get_stylesheet();
+                $cache_key = 'wpw_theme_update_' . $theme_slug;
+                $cached_data = get_transient($cache_key);
+                
+                // Handle manual update check
+                $check_message = '';
+                $check_success = false;
+                if (isset($_POST['check_for_updates']) && check_admin_referer('check_for_updates', 'check_updates_nonce')) {
+                    // Clear cache
+                    delete_transient($cache_key);
+                    // Force WordPress to check for updates
+                    delete_site_transient('update_themes');
+                    $check_message = 'Update cache cleared. WordPress will check for updates on the next page load.';
+                    $check_success = true;
+                }
+                
+                if ($check_message): ?>
+                    <div class="notice notice-<?php echo $check_success ? 'success' : 'info'; ?> is-dismissible" style="margin: 20px 0;">
+                        <p><?php echo esc_html($check_message); ?></p>
+                    </div>
+                <?php endif; ?>
+                
+                <div style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h3 style="margin-top: 0;">Current Version Information</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: 600; width: 200px;">Current Version:</td>
+                            <td style="padding: 8px 0;"><code><?php echo esc_html($current_version); ?></code></td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: 600;">Theme Slug:</td>
+                            <td style="padding: 8px 0;"><code><?php echo esc_html($theme_slug); ?></code></td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: 600;">GitHub Repo:</td>
+                            <td style="padding: 8px 0;"><code><?php echo esc_html(get_option('wpw_github_username', 'joshchretien') . '/' . get_option('wpw_github_repo', 'divi-child-theme')); ?></code></td>
+                        </tr>
+                        <?php if ($cached_data): ?>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: 600;">Cached Latest Version:</td>
+                            <td style="padding: 8px 0;">
+                                <code><?php echo esc_html($cached_data['version'] ?? 'N/A'); ?></code>
+                                <?php if (isset($cached_data['version'])): 
+                                    $update_available = version_compare($current_version, $cached_data['version'], '<');
+                                ?>
+                                    <?php if ($update_available): ?>
+                                        <span style="color: #155724; margin-left: 10px;">✅ Update Available!</span>
+                                    <?php else: ?>
+                                        <span style="color: #666; margin-left: 10px;">✓ Up to date</span>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: 600;">Cache Status:</td>
+                            <td style="padding: 8px 0;">
+                                <?php 
+                                $time_left = get_option('_transient_timeout_' . $cache_key) - time();
+                                if ($time_left > 0) {
+                                    echo 'Cached (expires in ' . round($time_left / 3600, 1) . ' hours)';
+                                } else {
+                                    echo 'Expired';
+                                }
+                                ?>
+                            </td>
+                        </tr>
+                        <?php if (isset($cached_data['download_url'])): ?>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: 600;">Download URL:</td>
+                            <td style="padding: 8px 0;">
+                                <code style="font-size: 11px; word-break: break-all;"><?php echo esc_html($cached_data['download_url']); ?></code>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php else: ?>
+                        <tr>
+                            <td style="padding: 8px 0; font-weight: 600;">Cache Status:</td>
+                            <td style="padding: 8px 0;">No cache found - Click "Check for Updates" to fetch from GitHub</td>
+                        </tr>
+                        <?php endif; ?>
+                    </table>
+                    
+                    <form method="post" action="" style="margin-top: 20px;">
+                        <?php wp_nonce_field('check_for_updates', 'check_updates_nonce'); ?>
+                        <button type="submit" name="check_for_updates" class="button button-primary">Check for Updates</button>
+                        <p style="margin: 10px 0 0 0; color: #666; font-size: 13px;">
+                            This will clear the update cache and force WordPress to check for new versions from GitHub.
+                        </p>
+                    </form>
+                    
+                    <div class="wpwizards-info-box" style="margin-top: 20px;">
+                        <strong>Note:</strong> Updates are automatically checked every 12 hours. Use the button above to force an immediate check. 
+                        If an update is available, you'll see a notification at the top of your WordPress admin.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="wpwizards-section">
                 <h2>Shortcodes</h2>
                 
                 <h3>Featured Image Caption</h3>
@@ -1065,9 +1169,81 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
                 <h2>Client Customizations</h2>
                 <p>Add your own custom code without worrying about theme updates overwriting it.</p>
                 
-                <div class="wpwizards-success-box">
+                <?php
+                // Get client customizations file path
+                $client_customizations_file = get_stylesheet_directory() . '/client-customizations.php';
+                $client_customizations_example = get_stylesheet_directory() . '/client-customizations.php.example';
+                
+                // Create file from example if it doesn't exist
+                if (!file_exists($client_customizations_file) && file_exists($client_customizations_example)) {
+                    copy($client_customizations_example, $client_customizations_file);
+                }
+                
+                // Get current file content
+                $file_content = '';
+                if (file_exists($client_customizations_file)) {
+                    $file_content = file_get_contents($client_customizations_file);
+                } elseif (file_exists($client_customizations_example)) {
+                    $file_content = file_get_contents($client_customizations_example);
+                }
+                
+                // Handle save
+                $save_message = '';
+                $save_success = false;
+                if (isset($_POST['save_client_customizations']) && check_admin_referer('save_client_customizations', 'client_customizations_nonce')) {
+                    if (current_user_can('edit_themes')) {
+                        $new_content = isset($_POST['client_customizations_content']) ? wp_unslash($_POST['client_customizations_content']) : '';
+                        
+                        // Check if file is writable
+                        if (!is_writable(dirname($client_customizations_file))) {
+                            $save_message = 'Error: The theme directory is not writable. Please check file permissions.';
+                        } else {
+                            // Save the file
+                            if (file_put_contents($client_customizations_file, $new_content, LOCK_EX)) {
+                                $save_message = 'File saved successfully! If you see any PHP errors, please check your code syntax.';
+                                $save_success = true;
+                                $file_content = $new_content;
+                            } else {
+                                $save_message = 'Error: Could not save file. Please check file permissions.';
+                            }
+                        }
+                    } else {
+                        $save_message = 'Error: You do not have permission to edit theme files.';
+                    }
+                }
+                ?>
+                
+                <?php if ($save_message): ?>
+                    <div class="notice notice-<?php echo $save_success ? 'success' : 'error'; ?> is-dismissible" style="margin: 20px 0;">
+                        <p><?php echo esc_html($save_message); ?></p>
+                    </div>
+                <?php endif; ?>
+                
+                <div class="wpwizards-success-box" style="margin-bottom: 20px;">
                     <strong>✅ Safe Customization File:</strong> Use <code>client-customizations.php</code> for all your custom code. This file is protected from theme updates!
                 </div>
+                
+                <h3>Live Editor</h3>
+                <form method="post" action="" id="client-customizations-form">
+                    <?php wp_nonce_field('save_client_customizations', 'client_customizations_nonce'); ?>
+                    <div style="margin-bottom: 15px;">
+                        <textarea name="client_customizations_content" 
+                                  id="client-customizations-editor" 
+                                  rows="20" 
+                                  style="width: 100%; font-family: 'Courier New', monospace; font-size: 13px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa;"
+                                  spellcheck="false"><?php echo esc_textarea($file_content); ?></textarea>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button type="submit" name="save_client_customizations" class="button button-primary">Save Changes</button>
+                        <span style="color: #666; font-size: 13px;">File: <code><?php echo esc_html(str_replace(ABSPATH, '', $client_customizations_file)); ?></code></span>
+                    </div>
+                </form>
+                
+                <div class="wpwizards-info-box" style="margin-top: 20px;">
+                    <strong>⚠️ Important:</strong> Always test your customizations on a staging site first. PHP syntax errors will prevent your site from loading.
+                </div>
+                
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
                 
                 <h3>How to Use</h3>
                 <p>Edit the file <code>client-customizations.php</code> in your theme folder. You can add:</p>
@@ -1946,7 +2122,19 @@ function wpwizards_kickoff_tab_content() {
                 </label>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button type="button" class="button button-secondary" id="generate-user-permissions-btn">Generate User Permissions</button>
+                <?php
+                // Check if all admin users already exist
+                $alex_user = get_user_by('email', 'alexandra@wpwizards.com');
+                $mackenzie_user = get_user_by('email', 'mackenzie@wpwizards.com');
+                $josh_user = get_user_by('email', 'josh@wpwizards.com');
+                $all_users_exist = $alex_user && $mackenzie_user && $josh_user;
+                ?>
+                <button type="button" 
+                        class="button button-secondary <?php echo $all_users_exist ? 'disabled' : ''; ?>" 
+                        id="generate-user-permissions-btn"
+                        <?php echo $all_users_exist ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''; ?>>
+                    Generate Admin Users
+                </button>
                 <a href="<?php echo esc_url(admin_url('post-new.php?post_type=seo_kickoff')); ?>" class="button button-primary">Add New Task</a>
             </div>
         </div>
@@ -2530,7 +2718,11 @@ function wpwizards_kickoff_tab_content() {
         });
         
         // Generate User Permissions button
-        $('#generate-user-permissions-btn').on('click', function() {
+        $('#generate-user-permissions-btn:not(.disabled)').on('click', function() {
+            if ($(this).prop('disabled')) {
+                return;
+            }
+            
             if (!confirm('This will create administrator accounts and migrate content from old users. Continue?')) {
                 return;
             }
@@ -2546,7 +2738,7 @@ function wpwizards_kickoff_tab_content() {
                     nonce: '<?php echo wp_create_nonce('wpwizards_kickoff_ajax'); ?>'
                 },
                 success: function(response) {
-                    $button.prop('disabled', false).text('Generate User Permissions');
+                    $button.prop('disabled', false).text('Generate Admin Users');
                     
                     if (response.success) {
                         var results = response.data;
@@ -2596,7 +2788,7 @@ function wpwizards_kickoff_tab_content() {
                     }
                 },
                 error: function() {
-                    $button.prop('disabled', false).text('Generate User Permissions');
+                    $button.prop('disabled', false).text('Generate Admin Users');
                     alert('An error occurred while generating user permissions.');
                 }
             });
@@ -2927,8 +3119,28 @@ function wpwizards_copy_previous_theme_customizations() {
         return;
     }
     
-    // Get previous theme's functions.php path
+    // Get previous theme's path
     $previous_theme_path = get_theme_root() . '/' . $previous_theme;
+    
+    // Check if previous theme is a child theme by reading its style.css
+    $previous_style = $previous_theme_path . '/style.css';
+    if (file_exists($previous_style)) {
+        $style_content = file_get_contents($previous_style);
+        // Check if it has a "Template:" header (indicates child theme)
+        $is_child_theme = preg_match('/Template\s*:/i', $style_content);
+        
+        // If it's NOT a child theme, skip migration (don't migrate from parent themes like Divi)
+        if (!$is_child_theme) {
+            return;
+        }
+        
+        // Also check if it's the parent Divi theme itself (shouldn't happen, but safety check)
+        if ($previous_theme === 'Divi' || $previous_theme === 'divi') {
+            return;
+        }
+    }
+    
+    // Get previous theme's functions.php path
     $previous_functions = $previous_theme_path . '/functions.php';
     
     // If previous theme's functions.php doesn't exist, skip
@@ -2987,7 +3199,7 @@ function wpwizards_extract_custom_code($previous_content, $current_content) {
     // Split into lines
     $previous_lines = explode("\n", $previous_content);
     
-    // Common WordPress/theme patterns to ignore
+    // Common WordPress/theme patterns to ignore (especially parent theme code)
     $ignore_patterns = array(
         '/^\s*\/\*/',  // Comments
         '/^\s*\*\//',
@@ -2998,6 +3210,21 @@ function wpwizards_extract_custom_code($previous_content, $current_content) {
         '/^\s*include_once/',
         '/^\s*include /',
         '/^\s*add_action\(/',
+        // Divi parent theme patterns
+        '/^\s*function et_setup_theme/',
+        '/^\s*use ET\\\Builder/',
+        '/^\s*\$themename\s*=/',
+        '/^\s*\$shortname\s*=/',
+        '/^\s*\$template_directory\s*=/',
+        '/^\s*\$et_store_options_in_one_row/',
+        '/^\s*\$default_colorscheme/',
+        '/^\s*et_core_setup/',
+        '/^\s*et_common_setup/',
+        '/^\s*ET_D5_Readiness/',
+        '/^\s*register_nav_menus/',
+        '/^\s*load_theme_textdomain/',
+        '/^\s*remove_filter.*et_/',
+        '/^\s*add_theme_support.*title-tag/',
         '/^\s*add_filter\(/',
         '/^\s*function\s+wp_/',
         '/^\s*function\s+get_/',
