@@ -8,6 +8,7 @@
    - Forced widget to top
 -------------------------------------------------- */
 
+
 add_action('wp_dashboard_setup', 'wpwizards_dashboard_widget');
 
 function wpwizards_dashboard_widget() {
@@ -325,14 +326,22 @@ add_action('admin_menu', 'wpwizards_admin_menu');
 add_action('admin_enqueue_scripts', 'wpwizards_admin_styles');
 
 function wpwizards_admin_menu() {
+    // Use PHP file that outputs SVG with proper headers
+    // This is the most reliable way to use SVG icons in WordPress admin menu
+    $icon_path = get_stylesheet_directory() . '/assets/icon.php';
+    $icon_url = get_stylesheet_directory_uri() . '/assets/icon.php';
+    
+    // Use custom icon if file exists, otherwise use dashicon
+    $menu_icon = file_exists($icon_path) ? $icon_url : 'dashicons-admin-tools';
+    
     add_menu_page(
         'WP Wizards Settings',
         'WP Wizards',
         'manage_options',
         'wpwizards-settings',
         'wpwizards_settings_page',
-        'dashicons-admin-tools',
-        30
+        $menu_icon,
+        1 // Position 1 = very top of menu (right after Dashboard)
     );
 }
 

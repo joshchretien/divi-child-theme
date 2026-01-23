@@ -24,9 +24,9 @@ if (!class_exists('WPW_Theme_Updater')) {
             $this->theme_name = $theme->get('Name');
             $this->current_version = $theme->get('Version');
             
-            // GitHub configuration - Get from options or use defaults
-            $this->github_username = get_option('wpw_github_username', 'your-username');
-            $this->github_repo = get_option('wpw_github_repo', 'your-repo-name');
+            // GitHub configuration - Hardcoded defaults (can be overridden via options)
+            $this->github_username = get_option('wpw_github_username', 'joshchretien'); // Default: WP Wizards GitHub
+            $this->github_repo = get_option('wpw_github_repo', 'divi-child-theme'); // Default: WP Wizards repo
             $this->github_token = get_option('wpw_github_token', ''); // Optional: for private repos
             
             // Cache settings
@@ -65,9 +65,8 @@ if (!class_exists('WPW_Theme_Updater')) {
          * Get update data from GitHub Releases or cache
          */
         private function get_update_data() {
-            // Check if GitHub is configured
-            if (empty($this->github_username) || empty($this->github_repo) || 
-                $this->github_username === 'your-username' || $this->github_repo === 'your-repo-name') {
+            // Check if GitHub is configured (should always be set with defaults)
+            if (empty($this->github_username) || empty($this->github_repo)) {
                 return false;
             }
             
