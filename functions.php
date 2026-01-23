@@ -985,11 +985,19 @@ function wpwizards_settings_page() {
                 <?php endif; ?>
                 
                 <div style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                    <h3 style="margin-top: 0;">Current Version Information</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="margin: 0;">Current Version Information</h3>
+                        <form method="post" action="" style="margin: 0;">
+                            <?php wp_nonce_field('check_for_updates', 'check_updates_nonce'); ?>
+                            <button type="submit" name="check_for_updates" class="button button-primary">Check for Updates</button>
+                        </form>
+                    </div>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr>
                             <td style="padding: 8px 0; font-weight: 600; width: 200px;">Current Version:</td>
-                            <td style="padding: 8px 0;"><code><?php echo esc_html($current_version); ?></code></td>
+                            <td style="padding: 8px 0;">
+                                <code style="font-size: 16px; font-weight: 600; color: #2271b1;"><?php echo esc_html($current_version); ?></code>
+                            </td>
                         </tr>
                         <tr>
                             <td style="padding: 8px 0; font-weight: 600;">Theme Slug:</td>
@@ -1005,10 +1013,14 @@ function wpwizards_settings_page() {
                             <td style="padding: 8px 0;">
                                 <code><?php echo esc_html($cached_data['version'] ?? 'N/A'); ?></code>
                                 <?php if (isset($cached_data['version'])): 
-                                    $update_available = version_compare($current_version, $cached_data['version'], '<');
+                                    $cached_version = $cached_data['version'];
+                                    $update_available = version_compare($current_version, $cached_version, '<');
+                                    $current_is_newer = version_compare($current_version, $cached_version, '>');
                                 ?>
                                     <?php if ($update_available): ?>
                                         <span style="color: #155724; margin-left: 10px;">✅ Update Available!</span>
+                                    <?php elseif ($current_is_newer): ?>
+                                        <span style="color: #856404; margin-left: 10px;">⚠️ Current version is newer than cached (cache may be outdated)</span>
                                     <?php else: ?>
                                         <span style="color: #666; margin-left: 10px;">✓ Up to date</span>
                                     <?php endif; ?>
@@ -1044,13 +1056,10 @@ function wpwizards_settings_page() {
                         <?php endif; ?>
                     </table>
                     
-                    <form method="post" action="" style="margin-top: 20px;">
-                        <?php wp_nonce_field('check_for_updates', 'check_updates_nonce'); ?>
-                        <button type="submit" name="check_for_updates" class="button button-primary">Check for Updates</button>
-                        <p style="margin: 10px 0 0 0; color: #666; font-size: 13px;">
-                            This will clear the update cache and force WordPress to check for new versions from GitHub.
-                        </p>
-                    </form>
+                    <p style="margin: 20px 0 0 0; color: #666; font-size: 13px; padding-top: 15px; border-top: 1px solid #ddd;">
+                        <strong>Note:</strong> Click "Check for Updates" above to clear the cache and force WordPress to check for new versions from GitHub. 
+                        Updates are automatically checked every 12 hours.
+                    </p>
                     
                     <div class="wpwizards-info-box" style="margin-top: 20px;">
                         <strong>Note:</strong> Updates are automatically checked every 12 hours. Use the button above to force an immediate check. 
