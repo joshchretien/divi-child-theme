@@ -137,6 +137,9 @@ function wpwizards_dashboard_widget_content() {
                 }
             }
         }
+        
+        // Only show SEO Kickoff section if there are tasks
+        if (!empty($kickoff_tasks)):
         ?>
         <div style="background:#f8f9fa; border:1px solid #e0e0e0; border-radius:8px; padding:15px; margin:20px 0;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -244,6 +247,7 @@ function wpwizards_dashboard_widget_content() {
                 } ?>
             </div>
         </div>
+        <?php endif; // End SEO Kickoff section - only show if tasks exist ?>
 
         <!-- USER / DEVICE INFO -->
         <p style="text-align:center; font-size:13px; color:#666; margin-top:10px;">
@@ -1203,15 +1207,70 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
                     if (current_user_can('edit_themes')) {
                         $new_content = isset($_POST['client_customizations_content']) ? wp_unslash($_POST['client_customizations_content']) : '';
                         
-                        // Check if file is writable
-                        if (!is_writable(dirname($client_customizations_file))) {
+                        // Basic PHP syntax validation
+                        $syntax_error = false;
+                        $error_message = '';
+                        
+                        // Remove PHP opening tag if present (we'll add it back)
+                        $check_content = trim($new_content);
+                        $has_opening_tag = false;
+                        if (strpos($check_content, '<?php') === 0) {
+                            $check_content = substr($check_content, 5);
+                            $has_opening_tag = true;
+                        } elseif (strpos($check_content, '<?') === 0) {
+                            $check_content = substr($check_content, 2);
+                            $has_opening_tag = true;
+                        }
+                        
+                        // Check for common issues
+                        if (!empty($check_content)) {
+                            // Check for unclosed PHP tags
+                            $open_tags = substr_count($check_content, '<?php') + substr_count($check_content, '<?');
+                            $close_tags = substr_count($check_content, '?>');
+                            
+                            // Check for HTML outside PHP tags (common mistake)
+                            $temp_check = preg_replace('/<\?php.*?\?>/s', '', $check_content);
+                            $temp_check = preg_replace('/<\?.*?\?>/s', '', $temp_check);
+                            if (preg_match('/<[a-zA-Z]/', $temp_check)) {
+                                $syntax_error = true;
+                                $error_message = 'HTML detected outside PHP tags. All HTML should be inside PHP echo statements or output functions.';
+                            }
+                            
+                            // Try to validate PHP syntax using tokenizer
+                            if (!$syntax_error) {
+                                $tokens = @token_get_all('<?php ' . $check_content);
+                                if ($tokens === false) {
+                                    $syntax_error = true;
+                                    $error_message = 'PHP syntax error detected. Please check your code.';
+                                } else {
+                                    // Check for unexpected tokens
+                                    foreach ($tokens as $token) {
+                                        if (is_array($token) && $token[0] === T_INLINE_HTML && preg_match('/<[a-zA-Z]/', $token[1])) {
+                                            $syntax_error = true;
+                                            $error_message = 'HTML found in PHP code. Make sure HTML is inside echo statements or output functions.';
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if ($syntax_error) {
+                            $save_message = 'Error: ' . $error_message . ' File was NOT saved to prevent breaking your site.';
+                        } elseif (!is_writable(dirname($client_customizations_file))) {
                             $save_message = 'Error: The theme directory is not writable. Please check file permissions.';
                         } else {
+                            // Ensure file starts with <?php if it has content
+                            $final_content = $new_content;
+                            if (!empty(trim($final_content)) && strpos(trim($final_content), '<?php') !== 0 && strpos(trim($final_content), '<?') !== 0) {
+                                $final_content = '<?php' . "\n" . $final_content;
+                            }
+                            
                             // Save the file
-                            if (file_put_contents($client_customizations_file, $new_content, LOCK_EX)) {
-                                $save_message = 'File saved successfully! If you see any PHP errors, please check your code syntax.';
+                            if (file_put_contents($client_customizations_file, $final_content, LOCK_EX)) {
+                                $save_message = 'File saved successfully!';
                                 $save_success = true;
-                                $file_content = $new_content;
+                                $file_content = $final_content;
                             } else {
                                 $save_message = 'Error: Could not save file. Please check file permissions.';
                             }
@@ -3340,7 +3399,43 @@ if (!file_exists($client_customizations) && file_exists($client_customizations_e
     copy($client_customizations_example, $client_customizations);
 }
 
-// Include client customizations if it exists
+// Include client customizations if file exists - with error handling to prevent site breakage
 if (file_exists($client_customizations)) {
-    require_once $client_customizations;
+    // Use output buffering and error suppression to catch parse errors
+    $wpw_customizations_error = false;
+    $wpw_customizations_error_msg = '';
+    
+    // Set up error handler to catch parse errors
+    set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$wpw_customizations_error, &$wpw_customizations_error_msg, $client_customizations) {
+        // Only catch errors from our customizations file
+        if ($errfile === $client_customizations && ($errno === E_PARSE || $errno === E_COMPILE_ERROR || $errno === E_ERROR)) {
+            $wpw_customizations_error = true;
+            $wpw_customizations_error_msg = $errstr;
+            error_log('WP Wizards: Parse/compile error in client-customizations.php: ' . $errstr . ' on line ' . $errline);
+            return true; // Suppress the error
+        }
+        return false; // Let other errors through
+    }, E_ALL | E_STRICT);
+    
+    // Try to include the file with error suppression
+    ob_start();
+    $included = @include_once $client_customizations;
+    $output = ob_get_clean();
+    
+    // Restore error handler
+    restore_error_handler();
+    
+    // If there was an error or the file couldn't be parsed, disable it
+    if ($wpw_customizations_error || $included === false) {
+        // Log the error
+        error_log('WP Wizards: client-customizations.php has been disabled due to syntax/parse error: ' . $wpw_customizations_error_msg);
+        
+        // Show admin notice
+        if (is_admin() && current_user_can('manage_options')) {
+            add_action('admin_notices', function() use ($wpw_customizations_error_msg) {
+                $msg = $wpw_customizations_error_msg ? ': ' . esc_html($wpw_customizations_error_msg) : '';
+                echo '<div class="notice notice-error is-dismissible"><p><strong>WP Wizards Error:</strong> There is a PHP syntax error in <code>client-customizations.php</code>' . $msg . '. The file has been automatically disabled to prevent breaking your site. Please fix the error in <strong>WP Wizards → Customize</strong> tab.</p></div>';
+            });
+        }
+    }
 }
