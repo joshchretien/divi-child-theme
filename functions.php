@@ -112,6 +112,21 @@ function wpwizards_dashboard_widget_content() {
                 Update Plugins
             </a>
 
+            <?php
+            // Show Manage Announcements button if announcements are enabled
+            if (get_option('wpwizards_announcements_enabled', false)) {
+                ?>
+                <!-- Make An Announcement -->
+                <a href="<?php echo admin_url('edit.php?post_type=wp_announcement'); ?>"
+                   class="button button-primary button-large"
+                   style="margin:6px 10px; display:inline-flex; align-items:center; background:#7b3fe4; border-color:#7b3fe4;">
+                    <span class="dashicons dashicons-megaphone" style="margin-right:6px;"></span>
+                    Manage Announcements
+                </a>
+                <?php
+            }
+            ?>
+
         </div>
 
         <!-- SEO KICKOFF SECTION -->
@@ -1178,6 +1193,50 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
         
         <!-- Customize Tab -->
         <div id="tab-customize" class="wpwizards-tab-content">
+            <div class="wpwizards-section">
+                <h2>Theme Features</h2>
+                
+                <!-- Announcements Toggle -->
+                <?php
+                $announcements_enabled = get_option('wpwizards_announcements_enabled', false);
+                
+                // Handle enable/disable toggle
+                if (isset($_POST['wpwizards_toggle_announcements']) && check_admin_referer('wpwizards_toggle_announcements', 'announcements_nonce')) {
+                    $new_status = isset($_POST['announcements_enabled']) ? (bool)$_POST['announcements_enabled'] : false;
+                    update_option('wpwizards_announcements_enabled', $new_status);
+                    $announcements_enabled = $new_status;
+                    echo '<div class="notice notice-success is-dismissible"><p>Announcements feature ' . ($announcements_enabled ? 'enabled' : 'disabled') . ' successfully!</p></div>';
+                }
+                ?>
+                
+                <div style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <div>
+                            <h3 style="margin: 0 0 5px 0;">📢 Announcements Feature</h3>
+                            <p style="margin: 0; color: #666;">Display announcements as a banner bar at the top of all pages. Use the [announcements] shortcode for manual placement.</p>
+                        </div>
+                        <form method="post" action="" style="margin: 0;">
+                            <?php wp_nonce_field('wpwizards_toggle_announcements', 'announcements_nonce'); ?>
+                            <input type="hidden" name="announcements_enabled" value="<?php echo $announcements_enabled ? '0' : '1'; ?>">
+                            <button type="submit" name="wpwizards_toggle_announcements" class="button button-<?php echo $announcements_enabled ? 'secondary' : 'primary'; ?>" style="min-width: 120px;">
+                                <?php echo $announcements_enabled ? 'Disable' : 'Enable'; ?> Announcements
+                            </button>
+                        </form>
+                    </div>
+                    <?php if ($announcements_enabled): ?>
+                        <div class="wpwizards-success-box" style="margin: 0;">
+                            <strong>✅ Enabled:</strong> Announcements are active. 
+                            <a href="<?php echo admin_url('edit.php?post_type=wp_announcement'); ?>">Manage Announcements</a> | 
+                            <a href="<?php echo admin_url('edit.php?post_type=wp_announcement&page=wp-announcements-settings'); ?>">Settings</a>
+                        </div>
+                    <?php else: ?>
+                        <div class="wpwizards-info-box" style="margin: 0;">
+                            <strong>ℹ️ Disabled:</strong> Click "Enable Announcements" above to activate the feature.
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            
             <div class="wpwizards-section">
                 <h2>Client Customizations</h2>
                 <p>Add your own custom code without worrying about theme updates overwriting it.</p>
@@ -3384,6 +3443,582 @@ function wpwizards_extract_custom_code($previous_content, $current_content) {
     }
     
     return implode("\n", $custom_lines);
+}
+
+/* --------------------------------------------------
+   WP WIZARDS ANNOUNCEMENTS PLUGIN
+   Integrated announcements feature - only loads if enabled
+-------------------------------------------------- */
+if (get_option('wpwizards_announcements_enabled', false)) {
+    // Default settings
+    function wp_announcements_get_default_settings() {
+        return [
+            'background_color' => '#000000',
+            'text_color' => '#ffffff',
+        ];
+    }
+
+    // Get settings with defaults
+    function wp_announcements_get_settings() {
+        $defaults = wp_announcements_get_default_settings();
+        $settings = get_option('wp_announcements_settings', $defaults);
+        return wp_parse_args($settings, $defaults);
+    }
+
+    // Register custom post type for Announcements
+    function wp_announcements_register_post_type() {
+        register_post_type('wp_announcement', [
+            'labels' => [
+                'name' => 'Announcements',
+                'singular_name' => 'Announcement',
+                'menu_name' => 'Announcements',
+            ],
+            'public' => true,
+            'has_archive' => false,
+            'show_in_menu' => true,
+            'supports' => ['title', 'editor'],
+            'menu_icon' => 'dashicons-megaphone',
+        ]);
+    }
+    add_action('init', 'wp_announcements_register_post_type');
+
+    // Add Settings submenu page
+    function wp_announcements_add_settings_page() {
+        add_submenu_page(
+            'edit.php?post_type=wp_announcement',
+            'Announcements Settings',
+            'Settings',
+            'manage_options',
+            'wp-announcements-settings',
+            'wp_announcements_settings_page'
+        );
+    }
+    add_action('admin_menu', 'wp_announcements_add_settings_page');
+
+    // Settings page callback
+    function wp_announcements_settings_page() {
+        if (isset($_POST['wp_announcements_save_settings']) && check_admin_referer('wp_announcements_settings_nonce')) {
+            $settings = [
+                'background_color' => sanitize_text_field($_POST['wp_announcements_background_color']),
+                'text_color' => sanitize_text_field($_POST['wp_announcements_text_color']),
+            ];
+            update_option('wp_announcements_settings', $settings);
+            echo '<div class="notice notice-success"><p>Settings saved successfully!</p></div>';
+        }
+        
+        $settings = wp_announcements_get_settings();
+        ?>
+        <div class="wrap">
+            <h1>Announcements Settings</h1>
+            
+            <div class="notice notice-info" style="margin: 20px 0; padding: 15px;">
+                <h2 style="margin-top: 0;">Announcements - How to Use</h2>
+                <p><strong>Shortcode:</strong> Use <code style="background: #f0f0f0; padding: 3px 6px; border-radius: 3px;">[announcements]</code> to display announcements anywhere on your site.</p>
+                <p><strong>Automatic Display:</strong> Announcements will automatically appear as a banner bar at the top of all pages when there are active announcements (within the date range you set).</p>
+                <p><strong>To create an announcement:</strong> Go to the <a href="<?php echo admin_url('edit.php?post_type=wp_announcement'); ?>">Announcements</a> page, click "Add New", enter your announcement title and content, then set the "From" and "To" dates in the Announcement Dates box.</p>
+                <p>For manual placement, simply add the shortcode <code style="background: #f0f0f0; padding: 3px 6px; border-radius: 3px;">[announcements]</code> to any page or post content.</p>
+            </div>
+            
+            <form method="post" action="">
+                <?php wp_nonce_field('wp_announcements_settings_nonce'); ?>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">
+                            <label for="wp_announcements_background_color">Background Color</label>
+                        </th>
+                        <td>
+                            <input type="color" name="wp_announcements_background_color" id="wp_announcements_background_color" value="<?php echo esc_attr($settings['background_color']); ?>" style="width: 100px; height: 40px;">
+                            <input type="text" value="<?php echo esc_attr($settings['background_color']); ?>" id="wp_announcements_background_color_text" style="width: 100px; margin-left: 10px;">
+                            <p class="description">Default: Black (#000000)</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="wp_announcements_text_color">Text Color</label>
+                        </th>
+                        <td>
+                            <input type="color" name="wp_announcements_text_color" id="wp_announcements_text_color" value="<?php echo esc_attr($settings['text_color']); ?>" style="width: 100px; height: 40px;">
+                            <input type="text" value="<?php echo esc_attr($settings['text_color']); ?>" id="wp_announcements_text_color_text" style="width: 100px; margin-left: 10px;">
+                            <p class="description">Default: White (#ffffff)</p>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <input type="submit" name="wp_announcements_save_settings" class="button button-primary" value="Save Settings">
+                </p>
+            </form>
+        </div>
+        <script>
+        (function() {
+            // Sync color picker with text input
+            var bgColor = document.getElementById('wp_announcements_background_color');
+            var bgColorText = document.getElementById('wp_announcements_background_color_text');
+            var textColor = document.getElementById('wp_announcements_text_color');
+            var textColorText = document.getElementById('wp_announcements_text_color_text');
+            
+            if (bgColor && bgColorText) {
+                bgColor.addEventListener('input', function() {
+                    bgColorText.value = bgColor.value;
+                });
+                bgColorText.addEventListener('input', function() {
+                    bgColor.value = bgColorText.value;
+                });
+            }
+            
+            if (textColor && textColorText) {
+                textColor.addEventListener('input', function() {
+                    textColorText.value = textColor.value;
+                });
+                textColorText.addEventListener('input', function() {
+                    textColor.value = textColorText.value;
+                });
+            }
+        })();
+        </script>
+        <?php
+    }
+
+    // Add custom meta boxes for from and to dates
+    function wp_announcements_add_meta_boxes() {
+        add_meta_box('wp_announcement_dates', 'Announcement Dates', 'wp_announcement_dates_callback', 'wp_announcement');
+    }
+    add_action('add_meta_boxes', 'wp_announcements_add_meta_boxes');
+
+    function wp_announcement_dates_callback($post) {
+        wp_nonce_field('wp_announcement_dates_save', 'wp_announcement_dates_nonce');
+        $from = get_post_meta($post->ID, '_wp_announcement_from', true);
+        $to = get_post_meta($post->ID, '_wp_announcement_to', true);
+        echo '<label>From: <input type="date" name="wp_announcement_from" value="' . esc_attr($from) . '" /></label><br><br>'; 
+        echo '<label>To: <input type="date" name="wp_announcement_to" value="' . esc_attr($to) . '" /></label>'; 
+    }
+
+    function wp_announcement_save_meta($post_id) {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (wp_is_post_revision($post_id)) return;
+        if (!isset($_POST['wp_announcement_dates_nonce']) || !wp_verify_nonce($_POST['wp_announcement_dates_nonce'], 'wp_announcement_dates_save')) return;
+        if (!current_user_can('edit_post', $post_id)) return;
+        
+        if (array_key_exists('wp_announcement_from', $_POST)) {
+            update_post_meta($post_id, '_wp_announcement_from', sanitize_text_field($_POST['wp_announcement_from']));
+        }
+        if (array_key_exists('wp_announcement_to', $_POST)) {
+            update_post_meta($post_id, '_wp_announcement_to', sanitize_text_field($_POST['wp_announcement_to']));
+        }
+    }
+    add_action('save_post', 'wp_announcement_save_meta');
+
+    // Add custom columns to announcements list
+    function wp_announcements_add_custom_columns($columns) {
+        $new_columns = [];
+        foreach ($columns as $key => $value) {
+            if ($key === 'date') {
+                $new_columns['announcement_from'] = 'From';
+                $new_columns['announcement_to'] = 'To';
+            }
+            $new_columns[$key] = $value;
+        }
+        return $new_columns;
+    }
+    add_filter('manage_wp_announcement_posts_columns', 'wp_announcements_add_custom_columns');
+
+    // Populate custom columns
+    function wp_announcements_custom_column_content($column, $post_id) {
+        if ($column === 'announcement_from') {
+            $from = get_post_meta($post_id, '_wp_announcement_from', true);
+            echo $from ? esc_html(date('Y-m-d', strtotime($from))) : '—';
+        }
+        if ($column === 'announcement_to') {
+            $to = get_post_meta($post_id, '_wp_announcement_to', true);
+            echo $to ? esc_html(date('Y-m-d', strtotime($to))) : '—';
+        }
+    }
+    add_action('manage_wp_announcement_posts_custom_column', 'wp_announcements_custom_column_content', 10, 2);
+
+    // Make custom columns sortable
+    function wp_announcements_sortable_columns($columns) {
+        $columns['announcement_from'] = 'announcement_from';
+        $columns['announcement_to'] = 'announcement_to';
+        return $columns;
+    }
+    add_filter('manage_edit-wp_announcement_sortable_columns', 'wp_announcements_sortable_columns');
+
+    // Helper function to check if there are active announcements
+    function wp_announcements_has_active() {
+        $today = date('Y-m-d');
+        $args = [
+            'post_type' => 'wp_announcement',
+            'post_status' => 'publish',
+            'posts_per_page' => 1,
+            'meta_query' => [
+                'relation' => 'AND',
+                [
+                    'key' => '_wp_announcement_from',
+                    'value' => $today,
+                    'compare' => '<=',
+                    'type' => 'DATE'
+                ],
+                [
+                    'key' => '_wp_announcement_to',
+                    'value' => $today,
+                    'compare' => '>=',
+                    'type' => 'DATE'
+                ]
+            ]
+        ];
+        $query = new WP_Query($args);
+        return $query->have_posts();
+    }
+
+    // Get active announcements
+    function wp_announcements_get_active() {
+        $today = date('Y-m-d');
+        $args = [
+            'post_type' => 'wp_announcement',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'orderby' => 'meta_value',
+            'order' => 'ASC',
+            'meta_key' => '_wp_announcement_from',
+            'meta_query' => [
+                'relation' => 'AND',
+                [
+                    'key' => '_wp_announcement_from',
+                    'value' => $today,
+                    'compare' => '<=',
+                    'type' => 'DATE'
+                ],
+                [
+                    'key' => '_wp_announcement_to',
+                    'value' => $today,
+                    'compare' => '>=',
+                    'type' => 'DATE'
+                ]
+            ]
+        ];
+        return new WP_Query($args);
+    }
+
+    // Shortcode to show announcements
+    function wp_announcements_shortcode($atts = []) {
+        $query = wp_announcements_get_active();
+        if (!$query->have_posts()) return '';
+
+        $settings = wp_announcements_get_settings();
+        $bg_color = esc_attr($settings['background_color']);
+        $text_color = esc_attr($settings['text_color']);
+
+        $output = '<div class="wp-wizards-announcement-box" style="background-color:' . $bg_color . ';padding:30px;text-align:center;margin:25px auto;max-width:800px;color:' . $text_color . ';font-weight:500;">';
+
+        while ($query->have_posts()) {
+            $query->the_post();
+            $title = esc_html(get_the_title());
+            $content = wp_kses_post(get_the_content());
+            $output .= '<div style="margin-bottom:30px;">
+                            <div style="font-size:1.75em;font-weight:bold;margin-bottom:5px;">' . $title . '</div>
+                            <div style="font-size:1.5em;">' . $content . '</div>
+                        </div>';
+        }
+
+        $output .= '</div>';
+        wp_reset_postdata();
+        return $output;
+    }
+    add_shortcode('announcements', 'wp_announcements_shortcode');
+
+    // Display banner bar at top of all pages
+    function wp_announcements_display_banner() {
+        // Only show on front-end, not in admin
+        if (is_admin()) {
+            return;
+        }
+        
+        // Check if there are active announcements
+        if (!wp_announcements_has_active()) {
+            return;
+        }
+        
+        // Get announcements
+        $query = wp_announcements_get_active();
+        if (!$query->have_posts()) {
+            return;
+        }
+        
+        $settings = wp_announcements_get_settings();
+        $bg_color = esc_attr($settings['background_color']);
+        $text_color = esc_attr($settings['text_color']);
+        
+        // Output banner
+        echo '<div id="wp-wizards-announcements-banner" style="position: relative; background-color: ' . $bg_color . '; color: ' . $text_color . '; padding: 20px; text-align: center; width: 100%; box-sizing: border-box; margin: 0;">';
+        
+        while ($query->have_posts()) {
+            $query->the_post();
+            $title = esc_html(get_the_title());
+            $content = wp_kses_post(get_the_content());
+            echo '<div style="margin: 0 auto; max-width: 1200px;">';
+            if ($title) {
+                echo '<strong style="font-size: 1.5em; display: block; margin-bottom: 8px;">' . $title . '</strong>';
+            }
+            echo '<div style="font-size: 1.2em; line-height: 1.5;">' . $content . '</div>';
+            echo '</div>';
+        }
+        
+        echo '</div>';
+        wp_reset_postdata();
+        
+        // Add JavaScript to inject banner into main content and push content down
+        ?>
+        <script>
+        (function() {
+            function moveBannerToContent() {
+                var banner = document.getElementById('wp-wizards-announcements-banner');
+                if (!banner) return;
+                
+                // Try to find the main content container (priority order)
+                var mainContentSelectors = [
+                    '#main-content',
+                    '.main-content',
+                    'main',
+                    '#main',
+                    '.site-content',
+                    '.content-area',
+                    '#content',
+                    'article',
+                    // Divi specific
+                    '.et_main_content',
+                    '.et_pb_section:first-of-type'
+                ];
+                
+                var mainContent = null;
+                for (var i = 0; i < mainContentSelectors.length; i++) {
+                    var element = document.querySelector(mainContentSelectors[i]);
+                    if (element) {
+                        mainContent = element;
+                        break;
+                    }
+                }
+                
+                // If we found main content, move banner to the very top
+                if (mainContent && banner.parentNode !== mainContent) {
+                    // Insert at the absolute first position
+                    if (mainContent.firstChild) {
+                        mainContent.insertBefore(banner, mainContent.firstChild);
+                    } else {
+                        mainContent.appendChild(banner);
+                    }
+                    
+                    // Ensure banner spans full width and displays properly
+                    banner.style.width = '100%';
+                    banner.style.marginLeft = '0';
+                    banner.style.marginRight = '0';
+                    banner.style.marginTop = '0';
+                    banner.style.display = 'block';
+                    banner.style.position = 'relative';
+                }
+            }
+            
+            function pushContentDown() {
+                // Banner should flow naturally in content, no padding needed
+                var banner = document.getElementById('wp-wizards-announcements-banner');
+                if (!banner) return;
+                
+                // Ensure banner has proper spacing but don't add padding to parent
+                banner.style.marginTop = '0';
+                banner.style.marginBottom = '0';
+            }
+            
+            // Try immediately
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    moveBannerToContent();
+                    setTimeout(pushContentDown, 50);
+                });
+            } else {
+                moveBannerToContent();
+                setTimeout(pushContentDown, 50);
+            }
+            
+            // Also try after a short delay in case elements load late
+            setTimeout(function() {
+                moveBannerToContent();
+                pushContentDown();
+            }, 100);
+            
+            // Handle window resize
+            window.addEventListener('resize', pushContentDown);
+        })();
+        </script>
+        <style>
+        #wp-wizards-announcements-banner {
+            position: relative !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            display: block !important;
+            z-index: 10 !important;
+        }
+        /* Ensure banner stays within content area */
+        .site-content #wp-wizards-announcements-banner,
+        .main-content #wp-wizards-announcements-banner,
+        #main-content #wp-wizards-announcements-banner,
+        #main #wp-wizards-announcements-banner,
+        main #wp-wizards-announcements-banner,
+        .content-area #wp-wizards-announcements-banner,
+        #content #wp-wizards-announcements-banner,
+        .content #wp-wizards-announcements-banner,
+        .page-content #wp-wizards-announcements-banner,
+        article #wp-wizards-announcements-banner,
+        .entry-content #wp-wizards-announcements-banner {
+            width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+        @media screen and (max-width: 768px) {
+            #wp-wizards-announcements-banner {
+                padding: 15px !important;
+            }
+            #wp-wizards-announcements-banner strong {
+                font-size: 1.3em !important;
+            }
+            #wp-wizards-announcements-banner div {
+                font-size: 1.1em !important;
+            }
+        }
+        </style>
+        <?php
+    }
+
+    // Hook banner display - try multiple hooks for maximum compatibility
+    add_action('template_redirect', 'wp_announcements_prepare_banner', 1);
+    function wp_announcements_prepare_banner() {
+        if (is_admin()) {
+            return;
+        }
+        
+        // Check if there are active announcements
+        if (!wp_announcements_has_active()) {
+            return;
+        }
+        
+        // Try wp_body_open first (most themes support this)
+        add_action('wp_body_open', 'wp_announcements_display_banner', 1);
+        
+        // Also try wp_head as fallback
+        add_action('wp_head', 'wp_announcements_display_banner_header', 1);
+    }
+
+    // Header fallback - inject banner via JavaScript early
+    function wp_announcements_display_banner_header() {
+        if (is_admin() || !wp_announcements_has_active()) {
+            return;
+        }
+        
+        // Only output if wp_body_open didn't fire
+        if (did_action('wp_body_open')) {
+            return;
+        }
+        
+        $query = wp_announcements_get_active();
+        if (!$query->have_posts()) {
+            return;
+        }
+        
+        $announcements = [];
+        while ($query->have_posts()) {
+            $query->the_post();
+            $announcements[] = [
+                'title' => get_the_title(),
+                'content' => get_the_content(),
+            ];
+        }
+        wp_reset_postdata();
+        
+        $settings = wp_announcements_get_settings();
+        $bg_color = esc_js($settings['background_color']);
+        $text_color = esc_js($settings['text_color']);
+        ?>
+        <script>
+        (function() {
+            var announcements = <?php echo json_encode($announcements); ?>;
+            var bgColor = '<?php echo $bg_color; ?>';
+            var textColor = '<?php echo $text_color; ?>';
+            
+            function createBanner() {
+                if (document.getElementById('wp-wizards-announcements-banner')) return;
+                
+                // Try to find the main content container (priority order)
+                var mainContentSelectors = [
+                    '#main-content',
+                    '.main-content',
+                    'main',
+                    '#main',
+                    '.site-content',
+                    '.content-area',
+                    '#content',
+                    'article',
+                    '.et_main_content',
+                    '.et_pb_section:first-of-type',
+                    'body'
+                ];
+                
+                var targetElement = null;
+                for (var i = 0; i < mainContentSelectors.length; i++) {
+                    var element = document.querySelector(mainContentSelectors[i]);
+                    if (element) {
+                        targetElement = element;
+                        break;
+                    }
+                }
+                
+                if (!targetElement) targetElement = document.body;
+                
+                var banner = document.createElement('div');
+                banner.id = 'wp-wizards-announcements-banner';
+                banner.style.cssText = 'position: relative; background-color: ' + bgColor + '; color: ' + textColor + '; padding: 20px; text-align: center; width: 100%; box-sizing: border-box; margin: 0; display: block; z-index: 10;';
+                
+                var content = document.createElement('div');
+                content.style.cssText = 'margin: 0 auto; max-width: 1200px;';
+                
+                announcements.forEach(function(announcement) {
+                    if (announcement.title) {
+                        var title = document.createElement('strong');
+                        title.style.cssText = 'font-size: 1.5em; display: block; margin-bottom: 8px;';
+                        title.textContent = announcement.title;
+                        content.appendChild(title);
+                    }
+                    var text = document.createElement('div');
+                    text.style.cssText = 'font-size: 1.2em; line-height: 1.5;';
+                    text.innerHTML = announcement.content;
+                    content.appendChild(text);
+                });
+                
+                banner.appendChild(content);
+                
+                // Insert banner at the very top of the target element
+                if (targetElement.firstChild) {
+                    targetElement.insertBefore(banner, targetElement.firstChild);
+                } else {
+                    targetElement.appendChild(banner);
+                }
+                
+                // Ensure banner spans full width and displays properly
+                banner.style.width = '100%';
+                banner.style.marginLeft = '0';
+                banner.style.marginRight = '0';
+                banner.style.marginTop = '0';
+                banner.style.display = 'block';
+                banner.style.position = 'relative';
+            }
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', createBanner);
+            } else {
+                createBanner();
+            }
+            setTimeout(createBanner, 100);
+        })();
+        </script>
+        <?php
+    }
 }
 
 /* --------------------------------------------------
