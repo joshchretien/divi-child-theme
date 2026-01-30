@@ -11,6 +11,24 @@
  * 
  * TO USE: Copy this file to client-customizations.php (remove .example)
  * Or just start editing - the file will be created automatically.
+ * 
+ * COMMON SYNTAX ERRORS TO AVOID:
+ * 
+ * 1. Missing commas in arrays:
+ *    WRONG:  array('key1' => 'value1' 'key2' => 'value2')
+ *    RIGHT:  array('key1' => 'value1', 'key2' => 'value2')
+ * 
+ * 2. Unclosed parentheses/brackets:
+ *    WRONG:  array('key' => 'value'
+ *    RIGHT:  array('key' => 'value')
+ * 
+ * 3. Using => outside of array context:
+ *    WRONG:  $var => 'value'
+ *    RIGHT:  $var = 'value'  OR  array('key' => 'value')
+ * 
+ * 4. Missing closing parenthesis in function calls:
+ *    WRONG:  add_action('hook', function() { ... }
+ *    RIGHT:  add_action('hook', function() { ... });
  */
 
 // Example: Add your custom code below this line

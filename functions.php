@@ -948,6 +948,11 @@ function wpwizards_settings_page() {
                     </div>
                     
                     <div class="wpwizards-success-box" style="margin: 0;">
+                        <h3 style="margin-top: 0;">📢 Announcements System</h3>
+                        <p>Integrated announcements feature with enable/disable toggle. Display announcements as banner bars at the top of all pages or use the [announcements] shortcode for manual placement. Includes date range filtering, customizable colors, and automatic display when active.</p>
+                    </div>
+                    
+                    <div class="wpwizards-success-box" style="margin: 0;">
                         <h3 style="margin-top: 0;">🛡️ Protected Customizations</h3>
                         <p>Safe customization file that's protected from theme updates. Add your own code without fear of losing it during updates. Automatically migrates custom code from previous themes on activation.</p>
                     </div>
@@ -4036,41 +4041,80 @@ if (!file_exists($client_customizations) && file_exists($client_customizations_e
 
 // Include client customizations if file exists - with error handling to prevent site breakage
 if (file_exists($client_customizations)) {
-    // Use output buffering and error suppression to catch parse errors
     $wpw_customizations_error = false;
     $wpw_customizations_error_msg = '';
+    $wpw_customizations_error_line = 0;
     
-    // Set up error handler to catch parse errors
-    set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$wpw_customizations_error, &$wpw_customizations_error_msg, $client_customizations) {
-        // Only catch errors from our customizations file
-        if ($errfile === $client_customizations && ($errno === E_PARSE || $errno === E_COMPILE_ERROR || $errno === E_ERROR)) {
-            $wpw_customizations_error = true;
-            $wpw_customizations_error_msg = $errstr;
-            error_log('WP Wizards: Parse/compile error in client-customizations.php: ' . $errstr . ' on line ' . $errline);
-            return true; // Suppress the error
+    // Pre-validate syntax using PHP's lint check if available (most reliable method)
+    $syntax_check_passed = true;
+    if (function_exists('shell_exec') && !ini_get('safe_mode')) {
+        $php_binary = defined('PHP_BINARY') ? PHP_BINARY : 'php';
+        $lint_output = @shell_exec($php_binary . ' -l ' . escapeshellarg($client_customizations) . ' 2>&1');
+        if ($lint_output && strpos($lint_output, 'No syntax errors') === false) {
+            // Extract line number from lint output
+            if (preg_match('/on line (\d+)/', $lint_output, $matches)) {
+                $wpw_customizations_error_line = (int)$matches[1];
+            }
+            if (preg_match('/Parse error:\s*(.+?)(?: in|$)/', $lint_output, $matches)) {
+                $wpw_customizations_error_msg = trim($matches[1]);
+            } else {
+                $wpw_customizations_error_msg = 'Syntax error detected by PHP lint check';
+            }
+            $syntax_check_passed = false;
+            error_log('WP Wizards: PHP lint check found syntax error in client-customizations.php on line ' . $wpw_customizations_error_line . ': ' . $wpw_customizations_error_msg);
         }
-        return false; // Let other errors through
-    }, E_ALL | E_STRICT);
+    }
     
-    // Try to include the file with error suppression
-    ob_start();
-    $included = @include_once $client_customizations;
-    $output = ob_get_clean();
-    
-    // Restore error handler
-    restore_error_handler();
+    // If lint check passed or isn't available, proceed with include and catch runtime errors
+    if ($syntax_check_passed) {
+        // Set up error handler to catch parse errors during include
+        set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$wpw_customizations_error, &$wpw_customizations_error_msg, &$wpw_customizations_error_line, $client_customizations) {
+            // Only catch errors from our customizations file
+            if ($errfile === $client_customizations && ($errno === E_PARSE || $errno === E_COMPILE_ERROR || $errno === E_ERROR)) {
+                $wpw_customizations_error = true;
+                $wpw_customizations_error_msg = $errstr;
+                $wpw_customizations_error_line = $errline;
+                error_log('WP Wizards: Parse/compile error in client-customizations.php on line ' . $errline . ': ' . $errstr);
+                return true; // Suppress the error
+            }
+            return false; // Let other errors through
+        }, E_ALL | E_STRICT);
+        
+        // Try to include the file with error suppression
+        ob_start();
+        $included = @include_once $client_customizations;
+        $output = ob_get_clean();
+        
+        // Restore error handler
+        restore_error_handler();
+    } else {
+        // Syntax check failed, don't attempt to include
+        $wpw_customizations_error = true;
+        $included = false;
+    }
     
     // If there was an error or the file couldn't be parsed, disable it
     if ($wpw_customizations_error || $included === false) {
-        // Log the error
-        error_log('WP Wizards: client-customizations.php has been disabled due to syntax/parse error: ' . $wpw_customizations_error_msg);
+        // Log the error with line number
+        $error_details = $wpw_customizations_error_msg;
+        if ($wpw_customizations_error_line > 0) {
+            $error_details = 'on line ' . $wpw_customizations_error_line . ': ' . $error_details;
+        }
+        error_log('WP Wizards: client-customizations.php has been disabled due to syntax/parse error ' . $error_details);
         
-        // Show admin notice
+        // Show admin notice with specific line number
         if (is_admin() && current_user_can('manage_options')) {
-            add_action('admin_notices', function() use ($wpw_customizations_error_msg) {
-                $msg = $wpw_customizations_error_msg ? ': ' . esc_html($wpw_customizations_error_msg) : '';
-                echo '<div class="notice notice-error is-dismissible"><p><strong>WP Wizards Error:</strong> There is a PHP syntax error in <code>client-customizations.php</code>' . $msg . '. The file has been automatically disabled to prevent breaking your site. Please fix the error in <strong>WP Wizards → Customize</strong> tab.</p></div>';
+            add_action('admin_notices', function() use ($wpw_customizations_error_msg, $wpw_customizations_error_line) {
+                $msg = '';
+                if ($wpw_customizations_error_line > 0) {
+                    $msg = ' on line ' . $wpw_customizations_error_line;
+                }
+                if ($wpw_customizations_error_msg) {
+                    $msg .= ': ' . esc_html($wpw_customizations_error_msg);
+                }
+                echo '<div class="notice notice-error is-dismissible"><p><strong>WP Wizards Error:</strong> There is a PHP syntax error in <code>client-customizations.php</code>' . $msg . '. The file has been automatically disabled to prevent breaking your site. Please fix the error in <strong>WP Wizards → Customize</strong> tab.</p><p><strong>Common causes:</strong> Missing comma in array, unclosed parenthesis/bracket, or using <code>=&gt;</code> outside of array context.</p></div>';
             });
         }
     }
+}
 }
