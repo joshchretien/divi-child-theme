@@ -4183,4 +4183,3 @@ if (file_exists($client_customizations)) {
         }
     }
 }
-}
