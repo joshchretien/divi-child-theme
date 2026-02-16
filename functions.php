@@ -1489,6 +1489,7 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
    IMAGE ATTRIBUTION VERIFIER
    Adds verification checkbox to Posts to confirm image copyright attribution exists
 -------------------------------------------------- */
+if (!class_exists('WPW_Image_Attribution_Verifier')) {
 class WPW_Image_Attribution_Verifier {
 	const META_VERIFIED     = '_wpw_attr_verified';
 	const META_VERIFIED_BY  = '_wpw_attr_verified_by';
@@ -1701,9 +1702,10 @@ class WPW_Image_Attribution_Verifier {
 		}
 	}
 }
+} // End if (!class_exists('WPW_Image_Attribution_Verifier'))
 
 // Initialize Image Attribution Verifier
-if ( is_admin() ) {
+if ( is_admin() && class_exists('WPW_Image_Attribution_Verifier')) {
 	new WPW_Image_Attribution_Verifier();
 }
 
