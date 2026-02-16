@@ -1104,7 +1104,7 @@ function wpwizards_settings_page() {
                 <div class="wpwizards-code-block">
                     <code>[featured_image_caption]</code>
                 </div>
-                <button class="wpwizards-copy-btn">Copy Code</button>
+                <button class="wpwizards-copy-btn" data-copy-text="[featured_image_caption]">Copy Code</button>
                 
                 <div class="wpwizards-info-box">
                     <strong>Note:</strong> This shortcode only works on singular posts and pages (not archive pages). It will only display if:
@@ -2333,7 +2333,22 @@ function wpwizards_kickoff_tab_content() {
                 </div>
             </div>
             <div class="wpwizards-kickoff-tasks">
-                <?php foreach ($tasks as $task): 
+                <?php 
+                // Separate completed tasks from active tasks
+                $active_tasks = array();
+                $completed_tasks = array();
+                
+                foreach ($tasks as $task) {
+                    $status = get_post_meta($task->ID, '_kickoff_status', true) ?: 'in_progress';
+                    if ($status === 'done') {
+                        $completed_tasks[] = $task;
+                    } else {
+                        $active_tasks[] = $task;
+                    }
+                }
+                
+                // Display active tasks
+                foreach ($active_tasks as $task): 
                     $assigned_to = get_post_meta($task->ID, '_kickoff_assigned_to', true);
                     $status = get_post_meta($task->ID, '_kickoff_status', true) ?: 'in_progress';
                     $last_updated_by = get_post_meta($task->ID, '_kickoff_last_updated_by', true);
@@ -2457,6 +2472,57 @@ function wpwizards_kickoff_tab_content() {
                     </div>
                 <?php endforeach; ?>
             </div>
+            
+            <?php if (!empty($completed_tasks)): ?>
+                <div class="wpwizards-completed-tasks-section" style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #ddd;">
+                    <h2 style="margin-bottom: 20px; color: #155724;">Completed Tasks</h2>
+                    <div class="wpwizards-completed-tasks-list" style="display: grid; gap: 15px;">
+                        <?php foreach ($completed_tasks as $task): 
+                            $assigned_to = get_post_meta($task->ID, '_kickoff_assigned_to', true);
+                            $last_updated_by = get_post_meta($task->ID, '_kickoff_last_updated_by', true);
+                            $last_updated_date = get_post_meta($task->ID, '_kickoff_last_updated_date', true);
+                            $assigned_user = $assigned_to ? get_user_by('ID', $assigned_to) : null;
+                            $updater_user = $last_updated_by ? get_user_by('ID', $last_updated_by) : null;
+                            $notes = $task->post_content;
+                        ?>
+                            <div class="wpwizards-completed-task-item" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; flex-wrap: wrap;">
+                                    <div style="flex: 1; min-width: 200px;">
+                                        <h4 style="margin: 0 0 10px 0; color: #155724; font-size: 16px;">
+                                            <?php echo esc_html($task->post_title); ?>
+                                        </h4>
+                                        <div style="display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: #666;">
+                                            <?php if ($last_updated_date): ?>
+                                                <div>
+                                                    <strong>Completed:</strong> <?php echo esc_html(date('M j, Y g:i A', strtotime($last_updated_date))); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                            <?php if ($updater_user): ?>
+                                                <div>
+                                                    <strong>By:</strong> <?php echo esc_html($updater_user->display_name); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                            <?php if ($assigned_user): ?>
+                                                <div>
+                                                    <strong>Assigned to:</strong> <?php echo esc_html($assigned_user->display_name); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <?php if (!empty($notes)): ?>
+                                        <div style="flex: 1; min-width: 200px; padding: 10px; background: #fff; border-radius: 4px; border: 1px solid #e0e0e0;">
+                                            <strong style="display: block; margin-bottom: 5px; font-size: 12px; color: #666; text-transform: uppercase;">Notes:</strong>
+                                            <div style="font-size: 13px; color: #333; line-height: 1.5;">
+                                                <?php echo wp_kses_post(wpautop($notes)); ?>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
     

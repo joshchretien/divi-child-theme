@@ -65,15 +65,26 @@
             e.preventDefault();
             e.stopPropagation();
             var $btn = $(this);
-            var codeBlock = $btn.siblings('.wpwizards-code-block');
-            var text = codeBlock.find('code').text() || codeBlock.text();
+            var text;
+            
+            // Check if button has a data-copy-text attribute (for specific text to copy)
+            if ($btn.data('copy-text')) {
+                text = $btn.data('copy-text');
+            } else {
+                // Fallback to extracting from code block
+                var codeBlock = $btn.siblings('.wpwizards-code-block');
+                text = codeBlock.find('code').text() || codeBlock.text();
+                // Trim whitespace
+                text = text.trim();
+            }
             
             // Modern clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(function() {
                     $btn.text('Copied!').addClass('copied');
                     setTimeout(function() {
-                        $btn.text('Copy Code').removeClass('copied');
+                        var originalText = $btn.data('original-text') || 'Copy Code';
+                        $btn.text(originalText).removeClass('copied');
                     }, 2000);
                 }).catch(function(err) {
                     console.error('Failed to copy:', err);
@@ -87,7 +98,8 @@
                     document.execCommand('copy');
                     $btn.text('Copied!').addClass('copied');
                     setTimeout(function() {
-                        $btn.text('Copy Code').removeClass('copied');
+                        var originalText = $btn.data('original-text') || 'Copy Code';
+                        $btn.text(originalText).removeClass('copied');
                     }, 2000);
                 } catch (err) {
                     console.error('Failed to copy:', err);
