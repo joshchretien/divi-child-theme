@@ -3927,7 +3927,7 @@ if (get_option('wpwizards_announcements_enabled', false)) {
             box-sizing: border-box !important;
             margin: 0 !important;
             display: block !important;
-            z-index: 10 !important;
+            z-index: 1 !important;
         }
         /* Ensure banner stays within content area */
         .site-content #wp-wizards-announcements-banner,
@@ -4046,7 +4046,7 @@ if (get_option('wpwizards_announcements_enabled', false)) {
                 
                 var banner = document.createElement('div');
                 banner.id = 'wp-wizards-announcements-banner';
-                banner.style.cssText = 'position: relative; background-color: ' + bgColor + '; color: ' + textColor + '; padding: 20px; text-align: center; width: 100%; box-sizing: border-box; margin: 0; display: block; z-index: 10;';
+                banner.style.cssText = 'position: relative; background-color: ' + bgColor + '; color: ' + textColor + '; padding: 20px; text-align: center; width: 100%; box-sizing: border-box; margin: 0; display: block; z-index: 1;';
                 
                 var content = document.createElement('div');
                 content.style.cssText = 'margin: 0 auto; max-width: 1200px;';
