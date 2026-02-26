@@ -478,14 +478,59 @@ function wpwizards_admin_menu() {
         'WP Wizards',
         'manage_options',
         'wpwizards-settings',
-        'wpwizards_settings_page',
+        'wpwizards_kickoff_page', // Default to Kickoff page
         $menu_icon,
         1 // Position 1 = very top of menu (right after Dashboard)
+    );
+    
+    // Add submenu pages for each section
+    add_submenu_page(
+        'wpwizards-settings',
+        'Kickoff',
+        'Kickoff',
+        'manage_options',
+        'wpwizards-settings',
+        'wpwizards_kickoff_page'
+    );
+    
+    add_submenu_page(
+        'wpwizards-settings',
+        'Documentation',
+        'Documentation',
+        'manage_options',
+        'wpwizards-documentation',
+        'wpwizards_documentation_page'
+    );
+    
+    add_submenu_page(
+        'wpwizards-settings',
+        'Customize',
+        'Customize',
+        'manage_options',
+        'wpwizards-customize',
+        'wpwizards_customize_page'
+    );
+    
+    add_submenu_page(
+        'wpwizards-settings',
+        'Get Help',
+        'Get Help',
+        'manage_options',
+        'wpwizards-get-help',
+        'wpwizards_get_help_page'
     );
 }
 
 function wpwizards_admin_styles($hook) {
-    if ($hook !== 'toplevel_page_wpwizards-settings') {
+    // Load styles for all WP Wizards pages
+    $wpwizards_pages = array(
+        'toplevel_page_wpwizards-settings',
+        'wp-wizards_page_wpwizards-documentation',
+        'wp-wizards_page_wpwizards-customize',
+        'wp-wizards_page_wpwizards-get-help'
+    );
+    
+    if (!in_array($hook, $wpwizards_pages)) {
         return;
     }
     
@@ -502,27 +547,7 @@ function wpwizards_admin_styles($hook) {
         true // Load in footer after DOM is ready
     );
     
-    // Add inline script to ensure tabs work even if external script fails
-    $inline_script = "jQuery(document).ready(function($) {
-        // Only add fallback if external script hasn't already set up tabs
-        setTimeout(function() {
-            if (!$('.wpwizards-tab').data('initialized')) {
-                $('.wpwizards-tab').on('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    var target = $(this).attr('data-tab');
-                    if (target) {
-                        $('.wpwizards-tab').removeClass('active');
-                        $('.wpwizards-tab-content').removeClass('active');
-                        $(this).addClass('active');
-                        $('#' + target).addClass('active');
-                    }
-                });
-                $('.wpwizards-tab').data('initialized', true);
-            }
-        }, 100);
-    });";
-    wp_add_inline_script('wpwizards-admin', $inline_script);
+    // No inline script needed - tabs removed
     ?>
     <style>
         .wpwizards-wrap {
@@ -559,54 +584,13 @@ function wpwizards_admin_styles($hook) {
             display: block;
             margin: 0 auto;
         }
-        .wpwizards-tabs {
-            display: flex;
-            border-bottom: 2px solid #ddd;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .wpwizards-tab {
-            padding: 12px 24px;
-            background: #f5f5f5;
-            border: none;
-            border-bottom: 3px solid transparent;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            color: #555;
-            transition: all 0.3s;
-            margin-right: 5px;
-            position: relative;
-            z-index: 1;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-        }
-        .wpwizards-tab:focus {
-            outline: 2px solid #667eea;
-            outline-offset: 2px;
-        }
-        .wpwizards-tab:hover {
-            background: #e9e9e9;
-            color: #333;
-        }
-        .wpwizards-tab.active {
-            background: white;
-            border-bottom-color: #667eea;
-            color: #667eea;
-        }
-        .wpwizards-tab-content {
-            display: none;
+        /* Tab styles removed - using separate pages now */
+        .wpwizards-section {
+            margin-bottom: 40px;
             background: white;
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .wpwizards-tab-content.active {
-            display: block;
-        }
-        .wpwizards-section {
-            margin-bottom: 40px;
         }
         .wpwizards-section h2 {
             font-size: 22px;
@@ -891,12 +875,8 @@ function wpwizards_admin_styles($hook) {
     <?php
 }
 
-function wpwizards_settings_page() {
-    if (!current_user_can('manage_options')) {
-        wp_die('You do not have sufficient permissions to access this page.');
-    }
-    
-    $logo = 'https://www.wpwizards.com/wp-content/uploads/2025/11/FC-Standard-scaled.png';
+// Common header function for all WP Wizards pages
+function wpwizards_page_header($title = 'WP Wizards Settings') {
     ?>
     <div class="wrap wpwizards-wrap">
         <div class="wpwizards-header">
@@ -904,24 +884,31 @@ function wpwizards_settings_page() {
                 <img src="https://wpwizards.com/wp-content/uploads/2025/11/FC-Trans-Horizontal-scaled.png" 
                      alt="WP Wizards Logo">
             </div>
-            <h1>WP Wizards Settings</h1>
+            <h1><?php echo esc_html($title); ?></h1>
             <p>Tools, shortcodes, and resources for your website</p>
         </div>
-        
-        <div class="wpwizards-tabs">
-            <button class="wpwizards-tab active" data-tab="tab-kickoff">Kickoff</button>
-            <button class="wpwizards-tab" data-tab="tab-documentation">Documentation</button>
-            <button class="wpwizards-tab" data-tab="tab-customize">Customize</button>
-            <button class="wpwizards-tab" data-tab="tab-get-help">Get Help</button>
-        </div>
-        
-        <!-- Kickoff Tab -->
-        <div id="tab-kickoff" class="wpwizards-tab-content active">
-            <?php wpwizards_kickoff_tab_content(); ?>
-        </div>
-        
-        <!-- Documentation Tab -->
-        <div id="tab-documentation" class="wpwizards-tab-content">
+    <?php
+}
+
+// Kickoff Page
+function wpwizards_kickoff_page() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have sufficient permissions to access this page.');
+    }
+    
+    wpwizards_page_header('Kickoff');
+    wpwizards_kickoff_tab_content();
+    echo '</div>'; // Close wrap
+}
+
+// Documentation Page
+function wpwizards_documentation_page() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have sufficient permissions to access this page.');
+    }
+    
+    wpwizards_page_header('Documentation');
+    ?>
             <div class="wpwizards-section">
                 <h2>Theme Features</h2>
                 <p>This child theme includes a comprehensive set of features designed to enhance your WordPress experience and streamline your workflow.</p>
@@ -1130,74 +1117,18 @@ function wpwizards_settings_page() {
                 </div>
             </div>
             
-            <div class="wpwizards-section">
-                <h2>Tools & Customizations</h2>
-                <p>Add your own custom code without worrying about theme updates overwriting it.</p>
-                
-                <div class="wpwizards-success-box">
-                    <strong>✅ Safe Customization File:</strong> Use <code>client-customizations.php</code> for all your custom code. This file is protected from theme updates!
-                </div>
-                
-                <h3>How to Use</h3>
-                <p>Edit the file <code>client-customizations.php</code> in your theme folder. You can add:</p>
-                <ul class="wpwizards-feature-list">
-                    <li>Custom functions</li>
-                    <li>Custom hooks and filters</li>
-                    <li>Custom shortcodes</li>
-                    <li>Custom CSS and JavaScript</li>
-                    <li>Any WordPress PHP code</li>
-                </ul>
-                
-                <h3>File Location</h3>
-                <div class="wpwizards-code-block">
-                    <code>wp-content/themes/divi-child/client-customizations.php</code>
-                </div>
-                <button class="wpwizards-copy-btn">Copy Path</button>
-                
-                <h3>Example Usage</h3>
-                <p>Here's an example of what you can add to <code>client-customizations.php</code>:</p>
-                
-                <div class="wpwizards-code-block">
-                    <code>// Add custom CSS
-function client_custom_css() {
-    echo '&lt;style&gt;
-        .my-custom-class { color: #ff0000; }
-    &lt;/style&gt;';
+    </div>
+    <?php
+    echo '</div>'; // Close wrap
 }
-add_action('wp_head', 'client_custom_css');
 
-// Add custom shortcode
-function client_custom_shortcode($atts) {
-    return '&lt;p&gt;My custom content&lt;/p&gt;';
-}
-add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
-                </div>
-                <button class="wpwizards-copy-btn">Copy Code</button>
-                
-                <div class="wpwizards-info-box">
-                    <strong>Important Notes:</strong>
-                    <ul style="margin: 10px 0 0 20px;">
-                        <li>This file is <strong>protected from updates</strong> - your code will never be overwritten</li>
-                        <li>The file is included at the end of <code>functions.php</code>, so all WordPress functions are available</li>
-                        <li><strong>Auto-created:</strong> If the file doesn't exist, it will be created automatically from the example template on first page load</li>
-                        <li>Always test your customizations on a staging site first</li>
-                        <li>If you make a mistake, you can delete the file and it will be recreated from the template</li>
-                    </ul>
-                </div>
-                
-                <h3>Access the File</h3>
-                <p>You can edit this file via:</p>
-                <ul style="margin-left: 20px;">
-                    <li><strong>FTP/SFTP:</strong> Navigate to the theme folder and edit <code>client-customizations.php</code></li>
-                    <li><strong>File Manager:</strong> Use your hosting control panel's file manager</li>
-                    <li><strong>Code Editor:</strong> Use a code editor like VS Code, Cursor, or similar</li>
-                    <li><strong>WordPress Plugin:</strong> Use a file editor plugin (not recommended for production)</li>
-                </ul>
-            </div>
-        </div>
-        
-        <!-- Customize Tab -->
-        <div id="tab-customize" class="wpwizards-tab-content">
+// Customize Page
+function wpwizards_customize_page() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have sufficient permissions to access this page.');
+    }
+    
+    wpwizards_page_header('Customize');
             <div class="wpwizards-section">
                 <h2>Theme Features</h2>
                 
@@ -1220,7 +1151,7 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
                             <h3 style="margin: 0 0 5px 0;">📢 Announcements Feature</h3>
                             <p style="margin: 0; color: #666;">Display announcements as a banner bar at the top of all pages. Use the [announcements] shortcode for manual placement.</p>
                         </div>
-                        <form method="post" action="" style="margin: 0;">
+                        <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=wpwizards-customize')); ?>" style="margin: 0;">
                             <?php wp_nonce_field('wpwizards_toggle_announcements', 'announcements_nonce'); ?>
                             <input type="hidden" name="announcements_enabled" value="<?php echo $announcements_enabled ? '0' : '1'; ?>">
                             <button type="submit" name="wpwizards_toggle_announcements" class="button button-<?php echo $announcements_enabled ? 'secondary' : 'primary'; ?>" style="min-width: 120px;">
@@ -1356,7 +1287,7 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
                 </div>
                 
                 <h3>Live Editor</h3>
-                <form method="post" action="" id="client-customizations-form">
+                <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=wpwizards-customize')); ?>" id="client-customizations-form">
                     <?php wp_nonce_field('save_client_customizations', 'client_customizations_nonce'); ?>
                     <div style="margin-bottom: 15px;">
                         <textarea name="client_customizations_content" 
@@ -1453,15 +1384,23 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
                     ?>
                     <div class="wpwizards-info-box" style="margin-top: 20px;">
                         <strong>File Status:</strong> The customization file doesn't exist yet. It will be automatically created from the example template when you first load this page, or you can create it manually.
-                    </div>
+                        </div>
                     <?php
                 }
                 ?>
             </div>
-        </div>
-        
-        <!-- Get Help Tab -->
-        <div id="tab-get-help" class="wpwizards-tab-content">
+    </div>
+    <?php
+    echo '</div>'; // Close wrap
+}
+
+// Get Help Page
+function wpwizards_get_help_page() {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have sufficient permissions to access this page.');
+    }
+    
+    wpwizards_page_header('Get Help');
             <div class="wpwizards-section">
                 <h2>Get Help</h2>
                 <p>Need assistance? We're here to help you get the most out of your website.</p>
@@ -1480,9 +1419,9 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
                     <strong>Need Help?</strong> If you have questions about any of the tools or features in this child theme, don't hesitate to reach out through one of the support channels above.
                 </div>
             </div>
-        </div>
     </div>
     <?php
+    echo '</div>'; // Close wrap
 }
 
 /* --------------------------------------------------
@@ -2289,7 +2228,7 @@ function wpwizards_kickoff_tab_content() {
         <?php if (empty($tasks)): ?>
             <div class="wpwizards-info-box">
                 <p>No tasks found. <a href="<?php echo esc_url(admin_url('post-new.php?post_type=seo_kickoff')); ?>">Create your first task</a> or use the button below to generate default tasks.</p>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=wpwizards-settings&create_default_tasks=1&_wpnonce=' . wp_create_nonce('create_default_tasks'))); ?>" class="button button-secondary" style="margin-top: 10px;">Generate Defaults</a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wpwizards-settings&create_default_tasks=1&_wpnonce=' . wp_create_nonce('create_default_tasks'))); ?>" class="button button-secondary" style="margin-top: 10px;">Generate Default Tasks</a>
             </div>
         <?php else: ?>
             <div class="wpwizards-kickoff-bulk-actions" style="background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; display: none;">
