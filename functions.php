@@ -1188,15 +1188,7 @@ function wpwizards_customize_page() {
                     copy($client_customizations_example, $client_customizations_file);
                 }
                 
-                // Get current file content
-                $file_content = '';
-                if (file_exists($client_customizations_file)) {
-                    $file_content = file_get_contents($client_customizations_file);
-                } elseif (file_exists($client_customizations_example)) {
-                    $file_content = file_get_contents($client_customizations_example);
-                }
-                
-                // Handle save
+                // Handle save FIRST, before getting file content
                 $save_message = '';
                 $save_success = false;
                 if (isset($_POST['save_client_customizations']) && check_admin_referer('save_client_customizations', 'client_customizations_nonce')) {
@@ -1266,7 +1258,9 @@ function wpwizards_customize_page() {
                             if (file_put_contents($client_customizations_file, $final_content, LOCK_EX)) {
                                 $save_message = 'File saved successfully!';
                                 $save_success = true;
-                                $file_content = $final_content;
+                                // Redirect to prevent resubmission on refresh
+                                wp_redirect(admin_url('admin.php?page=wpwizards-customize&saved=1'));
+                                exit;
                             } else {
                                 $save_message = 'Error: Could not save file. Please check file permissions.';
                             }
@@ -1274,6 +1268,20 @@ function wpwizards_customize_page() {
                     } else {
                         $save_message = 'Error: You do not have permission to edit theme files.';
                     }
+                }
+                
+                // Show success message if redirected after save
+                if (isset($_GET['saved']) && $_GET['saved'] == '1') {
+                    $save_message = 'File saved successfully!';
+                    $save_success = true;
+                }
+                
+                // Get current file content (after save handling)
+                $file_content = '';
+                if (file_exists($client_customizations_file)) {
+                    $file_content = file_get_contents($client_customizations_file);
+                } elseif (file_exists($client_customizations_example)) {
+                    $file_content = file_get_contents($client_customizations_example);
                 }
                 ?>
                 
@@ -1295,7 +1303,14 @@ function wpwizards_customize_page() {
                                   id="client-customizations-editor" 
                                   rows="20" 
                                   style="width: 100%; font-family: 'Courier New', monospace; font-size: 13px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa;"
-                                  spellcheck="false"><?php echo esc_textarea($file_content); ?></textarea>
+                                  spellcheck="false"><?php 
+                                  // Preserve user input on validation errors, otherwise show file content
+                                  if (!$save_success && isset($_POST['client_customizations_content'])) {
+                                      echo esc_textarea(wp_unslash($_POST['client_customizations_content']));
+                                  } else {
+                                      echo esc_textarea($file_content);
+                                  }
+                                  ?></textarea>
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="submit" name="save_client_customizations" class="button button-primary">Save Changes</button>
@@ -1390,7 +1405,6 @@ add_shortcode('my_shortcode', 'client_custom_shortcode');</code>
                 }
                 ?>
             </div>
-    </div>
     <?php
     echo '</div>'; // Close wrap
 }
