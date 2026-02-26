@@ -1129,6 +1129,7 @@ function wpwizards_customize_page() {
     }
     
     wpwizards_page_header('Customize');
+    ?>
             <div class="wpwizards-section">
                 <h2>Theme Features</h2>
                 
@@ -1401,6 +1402,7 @@ function wpwizards_get_help_page() {
     }
     
     wpwizards_page_header('Get Help');
+    ?>
             <div class="wpwizards-section">
                 <h2>Get Help</h2>
                 <p>Need assistance? We're here to help you get the most out of your website.</p>
